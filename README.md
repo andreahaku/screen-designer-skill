@@ -1,119 +1,155 @@
-# Screen Designer Skill
+# Screen Designer Skill (Dual Engine)
 
-A Claude Code skill that generates high-fidelity UI screen designs for **any platform** using [Nano Banana 2](https://blog.google/innovation-and-ai/technology/ai/nano-banana-2/) (Gemini Flash Image) with structured JSON prompting.
+A Claude Code skill that generates high-fidelity UI screen designs for **any platform** using two complementary engines:
 
-## What it does
+- **[Google Stitch SDK](https://stitch.withgoogle.com/)** — HTML/CSS output, iterative editing, design variants, multi-screen consistency via DESIGN.md
+- **[Nano Banana 2](https://blog.google/innovation-and-ai/technology/ai/nano-banana-2/)** (Gemini Flash Image) — Raster image generation, screenshot redesign, visual concepts
 
-- **Text to screen** — Describe a screen in natural language, get a production-quality mockup
-- **Screenshot redesign** — Provide an existing app screenshot, get a modernized redesign
-- **Multi-screen flows** — Generate consistent multi-screen experiences
-- **Any platform** — Mobile (iOS/Android), web, desktop, tablet, dashboard, landing page, watch
+## When to use which
 
-## Example output
+> **Design system / full app / multi-screen** → **Stitch** (DESIGN.md, iteration, consistency)
+> **Single screen or component** → **Nano Banana 2** (fast, visual, direct)
 
-Generated with: `/screen-designer a fitness dashboard, dark mode, premium feel with neon accents`
+| Scenario | Engine |
+|----------|--------|
+| Full app design / multi-screen flow | Stitch |
+| Design system creation | Stitch |
+| Desktop/web with usable HTML | Stitch |
+| Iterative editing | Stitch |
+| Design variants | Stitch |
+| Single screen mockup | Nano Banana |
+| Single component visualization | Nano Banana |
+| Redesign from screenshot | Nano Banana |
+| Visual concept / art | Nano Banana |
 
-The skill builds a structured JSON prompt behind the scenes, optimized for Nano Banana 2's JSON parsing capabilities, then generates and displays the result.
+**Mobile (Expo/React Native):** Stitch HTML serves as **visual reference only** — not usable directly in RN. Use Stitch for full app design systems; Nano Banana for quick single-screen mockups.
 
 ## Supported platforms
 
-| Platform | Aspect Ratio | Design System |
-|----------|-------------|---------------|
-| iPhone | `9:16` | iOS 18, SF Pro |
-| Android phone | `9:16` | Material Design 3 |
-| iPad | `3:4` | iPadOS adaptive |
-| Desktop web | `16:9` | Tailwind/Shadcn/custom |
-| Dashboard | `16:9` / `21:9` | Data-dense, sidebar + grid |
-| Landing page | `9:16` / `1:2` | Marketing/hero-driven |
-| Desktop app | `16:10` | macOS native / Electron |
-| Watch | `5:6` | watchOS compact |
+| Platform | Nano Banana (Aspect Ratio) | Stitch (DeviceType) |
+|----------|---------------------------|---------------------|
+| iPhone / Android | `9:16` | `MOBILE` |
+| iPad / tablet | `3:4` / `5:8` | `TABLET` |
+| Desktop web | `16:9` | `DESKTOP` |
+| Dashboard | `16:9` / `21:9` | `DESKTOP` |
+| Landing page | `9:16` / `1:2` | `DESKTOP` |
+| Desktop app | `16:10` | `DESKTOP` |
+| Watch | `5:6` | — |
 
 ## Requirements
 
 - [Bun](https://bun.sh) runtime
 - [Claude Code](https://claude.ai/claude-code) with skills support
-- Google AI API key (`GEMINI_API_KEY` or `GOOGLE_AI_API_KEY` env var)
+- **Nano Banana:** Google AI API key (`GEMINI_API_KEY` or `GOOGLE_AI_API_KEY`)
+- **Stitch:** Stitch API key (`STITCH_API_KEY`) — get from [stitch.withgoogle.com](https://stitch.withgoogle.com/)
 
 ## Installation
-
-### As a Claude Code skill (recommended)
 
 ```bash
 # Clone into your skills directory
 git clone https://github.com/andreahaku/screen-designer-skill.git ~/.claude/skills/screen-designer
 
-# Install dependencies
+# Install dependencies (covers both engines)
 cd ~/.claude/skills/screen-designer/scripts && bun install
 ```
 
-### Manual setup
-
-```bash
-# Clone anywhere
-git clone https://github.com/andreahaku/screen-designer-skill.git
-cd screen-designer-skill/scripts
-bun install
-
-# Symlink to Claude Code skills
-ln -s "$(pwd)/.." ~/.claude/skills/screen-designer
-```
-
-### Set your API key
+### Set your API keys
 
 Add to your shell profile (`~/.zshrc` or `~/.bashrc`):
 
 ```bash
 export GEMINI_API_KEY="your-google-ai-api-key"
+export STITCH_API_KEY="your-stitch-api-key"
 ```
 
-Get a key from [Google AI Studio](https://aistudio.google.com/apikey).
+**How to get the keys:**
+- **GEMINI_API_KEY**: Get from [Google AI Studio](https://aistudio.google.com/apikey) (free)
+- **STITCH_API_KEY**: Sign in at [stitch.withgoogle.com](https://stitch.withgoogle.com/) → Settings (gear icon) → API Keys → Create key. Requires a Google account. Free tier: 350 standard + 50 experimental generations/month.
 
 ## Usage
 
 ### In Claude Code
 
 ```
+# Single screen (Nano Banana)
 /screen-designer a fitness app dashboard with dark mode and neon accents
 
-/screen-designer redesign this settings screen with a modern iOS 18 style
-(attach a screenshot)
+# Full app design (Stitch)
+/screen-designer design system for a task management app: home, tasks list, task detail, settings
 
+# Redesign from screenshot (Nano Banana)
+/screen-designer redesign this settings screen with modern iOS 18 style
+
+# Desktop web (Stitch — usable HTML)
 /screen-designer a SaaS analytics dashboard with sidebar navigation, dark theme
-
-/screen-designer a landing page for an AI startup with gradient hero section
 ```
 
-### CLI (standalone)
+### CLI — Nano Banana (raster images)
 
 ```bash
-# New mobile screen
 bun scripts/generate.ts \
   --prompt "fitness dashboard" \
   --json-prompt '{"image_type":"mobile_app_screen",...}' \
-  --aspect-ratio "9:16" \
-  --output ./designs
+  --aspect-ratio "9:16"
 
 # Redesign from screenshot
 bun scripts/generate.ts \
   --prompt "modernize this screen" \
-  --screenshot ./current-app.png \
-  --json-prompt '{"image_type":"screen_redesign",...}' \
-  --output ./designs
+  --screenshot ./current-app.png
 
 # Multiple variations
-bun scripts/generate.ts \
-  --prompt "login screen" \
-  --json-prompt '...' \
-  --count 3
+bun scripts/generate.ts --prompt "login screen" --count 3
 ```
 
-### CLI options
+### CLI — Stitch (HTML + screenshots)
+
+```bash
+# Generate a new screen
+bun scripts/stitch-generate.ts \
+  --prompt "A fitness dashboard with steps, heart rate, and weekly chart" \
+  --device-type MOBILE
+
+# Edit an existing screen
+bun scripts/stitch-generate.ts \
+  --prompt "Change to dark mode" \
+  --mode edit --project-id abc --screen-id xyz
+
+# Generate variants
+bun scripts/stitch-generate.ts \
+  --prompt "Explore different layouts" \
+  --mode variants --variant-count 3 \
+  --creative-range EXPLORE --aspects LAYOUT,COLOR_SCHEME \
+  --project-id abc --screen-id xyz
+
+# With DESIGN.md for consistency
+bun scripts/stitch-generate.ts \
+  --prompt "Settings page" \
+  --design-md ./DESIGN.md --project-id abc
+```
+
+### CLI options — Stitch
 
 | Flag | Short | Description | Default |
 |------|-------|-------------|---------|
-| `--prompt` | `-p` | Description of the screen (required) | — |
-| `--screenshot` | `-s` | Path to existing screenshot for redesign | — |
-| `--json-prompt` | `-j` | Pre-built JSON prompt (overrides text prompt for API) | — |
+| `--prompt` | `-p` | Screen description (required) | — |
+| `--device-type` | `-d` | MOBILE, DESKTOP, TABLET, AGNOSTIC | `MOBILE` |
+| `--model` | `-m` | GEMINI_3_PRO, GEMINI_3_FLASH | `GEMINI_3_PRO` |
+| `--output` | `-o` | Output directory | `/tmp/screen-designer` |
+| `--project-id` | | Reuse existing Stitch project. **Required** for edit mode and variants with --screen-id | — |
+| `--screen-id` | | Target screen for edit/variants. **Required** for edit mode | — |
+| `--mode` | | generate, edit, variants | `generate` |
+| `--variant-count` | | 1-5 variants (validated) | `3` |
+| `--creative-range` | | REFINE, EXPLORE, REIMAGINE (validated) | — |
+| `--aspects` | | LAYOUT, COLOR_SCHEME, IMAGES, TEXT_FONT, TEXT_CONTENT (validated) | — |
+| `--design-md` | | Path to DESIGN.md for consistency | — |
+
+### CLI options — Nano Banana
+
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--prompt` | `-p` | Screen description (required) | — |
+| `--screenshot` | `-s` | Screenshot for redesign | — |
+| `--json-prompt` | `-j` | Structured JSON prompt | — |
 | `--aspect-ratio` | `-a` | Output aspect ratio | `9:16` |
 | `--output` | `-o` | Output directory | `/tmp/screen-designer` |
 | `--model` | `-m` | Gemini model ID | `gemini-2.5-flash-image` |
@@ -121,37 +157,30 @@ bun scripts/generate.ts \
 
 ## How it works
 
-1. **Claude interprets** your request and determines the platform, style, and layout
-2. **Structured JSON prompt** is built using the UI mockup schema (inspired by the [json-prompt skill](https://github.com/andreahaku/json-prompt-skill)) — this is key to getting high-quality, consistent results from Nano Banana 2
-3. **Nano Banana 2** (Gemini Flash Image) generates the screen via the Google GenAI API
-4. **Results** are saved as PNG and displayed in Claude Code
+### Nano Banana 2 (raster images)
+1. Claude builds a **structured JSON prompt** (palette, layout, typography, mood)
+2. Gemini Flash Image generates a high-fidelity raster mockup
+3. Result saved as PNG
 
-### Why JSON prompting?
+### Stitch SDK (HTML + screenshots)
+1. Claude creates a Stitch project and generates screens from text prompts
+2. Stitch returns **HTML+Tailwind CSS** and a **screenshot image** (download URLs, fetched automatically)
+3. Screens can be iteratively edited (`--mode edit`) or varied (`--mode variants`) using `--project-id` and `--screen-id` from the previous generation's JSON output
+4. DESIGN.md ensures consistency across multiple screens
+5. All inputs are validated: device types, models, creative ranges, aspects, and variant counts (1-5)
 
-Nano Banana 2 has the best JSON parsing capabilities among image generation models. A structured prompt with explicit color palettes, layout sections, typography, and mood keywords produces dramatically better results than plain text descriptions.
+### DESIGN.md
 
-```json
-{
-  "image_type": "mobile_app_screen",
-  "device": { "frame": "iPhone 16 Pro" },
-  "color_palette": { "primary": "#6C5CE7", "background": "#1A1A2E" },
-  "layout": {
-    "header": "Greeting + avatar",
-    "hero": "Activity ring chart",
-    "sections": ["Heart rate card", "Weekly chart"],
-    "footer": "Tab bar: Home, Workouts, Profile"
-  },
-  "visual_details": { "mood": "Dark, premium, neon accents" }
-}
-```
+A markdown file encoding your design system (colors, typography, spacing, components) that Stitch reads to enforce consistency across all generated screens. Create one for multi-screen projects.
 
 ## Tips
 
-- **Be explicit about colors** — always provide hex values, don't leave palette to chance
-- **Name the design system** — "iOS 18 native", "Material 3", "Tailwind" gives strong stylistic direction
-- **Describe layout sections** — the more specific, the better the spatial arrangement
-- **For redesigns** — describe what to keep and what to change separately
-- **Multi-screen consistency** — generate one screen at a time, reuse the same palette and design system
+- **Be explicit about colors** — provide hex values, don't leave palette to chance
+- **Name the design system** — "iOS 18", "Material 3", "Tailwind/Shadcn" gives strong direction
+- **For Stitch edits** — one change per prompt for best results; always save `projectId` and `screenId` from JSON output
+- **For Stitch variants** — use REFINE for tweaks, REIMAGINE for radical exploration; specify `--aspects` to control what changes
+- **Multi-screen** — always use DESIGN.md to maintain visual consistency
+- **Mobile (RN/Expo)** — Stitch HTML is a visual reference, not production code; extract design tokens for your implementation
 
 ## License
 
@@ -159,6 +188,5 @@ MIT
 
 ## Credits
 
-- Powered by [Nano Banana 2](https://blog.google/innovation-and-ai/technology/ai/nano-banana-2/) (Google DeepMind)
+- Powered by [Google Stitch SDK](https://stitch.withgoogle.com/) and [Nano Banana 2](https://blog.google/innovation-and-ai/technology/ai/nano-banana-2/) (Google DeepMind)
 - Built for [Claude Code](https://claude.ai/claude-code) (Anthropic)
-- JSON prompting methodology from the [json-prompt skill](https://github.com/andreahaku/json-prompt-skill)

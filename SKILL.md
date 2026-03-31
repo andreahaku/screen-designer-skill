@@ -1,38 +1,185 @@
 ---
 name: screen-designer
 description: >
-  Generate UI screen designs for any platform using Nano Banana 2 (Gemini Flash Image).
+  Generate UI screen designs using dual engines: Stitch SDK (HTML/code output, iterative editing,
+  design variants, design system consistency via DESIGN.md) and Nano Banana 2 (Gemini Flash Image
+  for screenshot redesign, visual concepts, raster mockups).
   Creates high-fidelity mockups for mobile apps, web apps, desktop software, tablets, dashboards,
-  and landing pages. Supports text-to-design and redesign from existing screenshots.
-  Uses structured JSON prompting for maximum quality.
+  and landing pages. For mobile (Expo/React Native), Stitch HTML serves as visual reference only.
   Invoke when user asks to "design a screen", "create a mockup", "redesign this screen",
   "generate UI", "app screen design", "web mockup", "dashboard design", "landing page design",
-  "nano banana design", "screen-designer", or wants AI-generated screen designs.
+  "nano banana design", "stitch design", "screen-designer", or wants AI-generated screen designs.
 user-invocable: true
 argument-hint: "<description of the screen to design>"
-compatibility: Requires Bun, @google/genai SDK, GEMINI_API_KEY or GOOGLE_AI_API_KEY.
-tags: design, ui, mockup, nano-banana, gemini, mobile, web, desktop, tablet, screen, app, redesign, landing-page, dashboard
+compatibility: Requires Bun. Nano Banana needs GEMINI_API_KEY. Stitch needs STITCH_API_KEY.
+tags: design, ui, mockup, nano-banana, gemini, stitch, mobile, web, desktop, tablet, screen, app, redesign, landing-page, dashboard, html, variants, design-system
 ---
 
-# Screen Designer
+# Screen Designer (Dual Engine)
 
-Generate UI screen designs for **any platform** using **Nano Banana 2** (Gemini Flash Image) with structured JSON prompting.
+Generate UI screen designs for **any platform** using two complementary engines:
+- **Stitch SDK** — HTML/CSS output, iterative editing, variants, DESIGN.md consistency
+- **Nano Banana 2** — Raster image generation, screenshot redesign, visual concepts
 
 ## Context
 
 - Working directory: !`pwd`
-- API key available: !`test -n "$GEMINI_API_KEY$GOOGLE_AI_API_KEY" && echo "YES" || echo "NO — set GEMINI_API_KEY"`
-- SDK installed: !`test -f "${CLAUDE_SKILL_DIR}/scripts/node_modules/@google/genai/package.json" && echo "YES" || echo "NO — run: cd ${CLAUDE_SKILL_DIR}/scripts && bun add @google/genai"`
+- Gemini API key: !`test -n "$GEMINI_API_KEY$GOOGLE_AI_API_KEY" && echo "YES" || echo "NO — set GEMINI_API_KEY"`
+- Stitch API key: !`test -n "$STITCH_API_KEY" && echo "YES" || echo "NO — set STITCH_API_KEY"`
+- Nano Banana SDK: !`test -f "${CLAUDE_SKILL_DIR}/scripts/node_modules/@google/genai/package.json" && echo "YES" || echo "NO — run: cd ${CLAUDE_SKILL_DIR}/scripts && bun install"`
+- Stitch SDK: !`test -f "${CLAUDE_SKILL_DIR}/scripts/node_modules/@google/stitch-sdk/package.json" && echo "YES" || echo "NO — run: cd ${CLAUDE_SKILL_DIR}/scripts && bun install"`
 
 ## Setup (first time only)
 
 ```bash
-cd "${CLAUDE_SKILL_DIR}/scripts" && bun add @google/genai
+cd "${CLAUDE_SKILL_DIR}/scripts" && bun install
 ```
 
-## Workflow
+## Step 0: Select Engine
 
-### Step 1: Understand the request
+The core rule is simple:
+
+> **Design system completo / intera app / multi-screen** → **Stitch** (DESIGN.md, iterazione, consistenza)
+> **Singola schermata o componente** → **Nano Banana 2** (veloce, visuale, diretto)
+
+| Scenario | Engine | Reason |
+|----------|--------|--------|
+| **Full app design / redesign** (multiple screens) | **Stitch** | Creates DESIGN.md, iterative editing, multi-screen consistency |
+| **Design system creation** (colors, fonts, tokens) | **Stitch** | Generates extractable design tokens from Tailwind config |
+| **Desktop/web** design with usable HTML | **Stitch** | HTML+Tailwind output is directly usable |
+| **Iterative editing** ("change X on this screen") | **Stitch** | Built-in edit API, preserves context |
+| **Design variants** (explore alternatives) | **Stitch** | REFINE/EXPLORE/REIMAGINE with aspect control |
+| **Single screen** mockup (any platform) | **Nano Banana** | Faster, direct visual output |
+| **Single component** visualization | **Nano Banana** | Quick visual concept |
+| **Redesign from screenshot** | **Nano Banana** | Stitch SDK doesn't accept image input |
+| **Visual concept / art / illustration** | **Nano Banana** | Image generation strength |
+| User explicitly requests an engine | **Respect choice** | Always honor user preference |
+
+**Mobile projects (Expo/React Native):** Stitch HTML is a **visual reference only** — it cannot be used directly in RN. Use Stitch when designing the full app to get: (1) consistent design system across all screens, (2) extractable design tokens (palette, fonts, spacing), (3) iterative editing. Use Nano Banana for quick single-screen mockups.
+
+---
+
+## Track A: Stitch Engine
+
+### Step A1: Understand the request
+
+Determine the **mode**, **device type**, and whether to use DESIGN.md:
+
+**Mode:**
+- **Generate**: New screen from text prompt (no project-id needed, one will be created)
+- **Edit**: Modify an existing Stitch screen (**requires both --project-id AND --screen-id** from previous generation)
+- **Variants**: Explore alternative designs. If --screen-id is given, **--project-id is also required**. Without --screen-id, a new base screen is generated first.
+
+**Device type mapping:**
+
+| Platform | DeviceType | Notes |
+|----------|-----------|-------|
+| iPhone, Android phone | `MOBILE` | HTML is reference only for RN/Expo |
+| Desktop web, SaaS app | `DESKTOP` | HTML is directly usable |
+| Dashboard, admin panel | `DESKTOP` | HTML is directly usable |
+| Landing page, marketing | `DESKTOP` | HTML is directly usable |
+| iPad, Android tablet | `TABLET` | HTML reference for native, usable for web |
+| Flexible / unknown | `AGNOSTIC` | Let Stitch decide |
+
+**Model selection:**
+- `GEMINI_3_PRO` — Higher quality, slower (default)
+- `GEMINI_3_FLASH` — Faster iteration, slightly lower quality
+
+### Step A2: Build the prompt
+
+Write a clear, specific prompt. Use Stitch prompting best practices:
+
+- **Be specific**: "A SaaS pricing page with 3 tiers, annual/monthly toggle, and comparison table" not "a pricing page"
+- **Set the vibe**: Use adjectives — "minimalist, warm, professional"
+- **One change at a time**: For edits, focus on a single modification
+- **Include color preferences**: "dark mode with purple accents" or exact hex values
+- **Reference platform patterns**: "bottom navigation bar", "sidebar with icons", "hero section"
+
+**For multi-screen flows**, create or reference a DESIGN.md (see DESIGN.md section below).
+
+### Step A3: Generate
+
+**New screen:**
+```bash
+bun "${CLAUDE_SKILL_DIR}/scripts/stitch-generate.ts" \
+  --prompt "<description>" \
+  --device-type "<MOBILE|DESKTOP|TABLET|AGNOSTIC>" \
+  --model "<GEMINI_3_PRO|GEMINI_3_FLASH>" \
+  --output "/tmp/screen-designer"
+```
+
+**With DESIGN.md for consistency:**
+```bash
+bun "${CLAUDE_SKILL_DIR}/scripts/stitch-generate.ts" \
+  --prompt "<description>" \
+  --device-type "MOBILE" \
+  --design-md "./DESIGN.md" \
+  --output "/tmp/screen-designer"
+```
+
+**Edit existing screen:**
+```bash
+bun "${CLAUDE_SKILL_DIR}/scripts/stitch-generate.ts" \
+  --prompt "Change the header to a gradient from blue to purple" \
+  --mode edit \
+  --project-id "<from previous JSON output>" \
+  --screen-id "<from previous JSON output>" \
+  --output "/tmp/screen-designer"
+```
+
+**Generate variants:**
+```bash
+bun "${CLAUDE_SKILL_DIR}/scripts/stitch-generate.ts" \
+  --prompt "Explore different layouts and color schemes" \
+  --mode variants \
+  --variant-count 3 \
+  --creative-range "EXPLORE" \
+  --aspects "LAYOUT,COLOR_SCHEME" \
+  --project-id "<from previous JSON output>" \
+  --screen-id "<from previous JSON output>" \
+  --output "/tmp/screen-designer"
+```
+
+**Variant options:**
+
+| Option | Values | Description |
+|--------|--------|-------------|
+| `--variant-count` | 1-5 | Number of variants (default: 3) |
+| `--creative-range` | REFINE, EXPLORE, REIMAGINE | How far from original. REFINE = subtle tweaks, REIMAGINE = radical |
+| `--aspects` | LAYOUT, COLOR_SCHEME, IMAGES, TEXT_FONT, TEXT_CONTENT | Which design aspects to vary (comma-separated) |
+
+### Step A4: Show results
+
+1. Read the generated **image** (PNG) to display the visual design — note: some screens may not return an image URL, in which case the imagePath field will be absent from JSON
+2. Note the **HTML path** — mention it so the user can open it in a browser
+3. **Capture projectId and screenId** from the JSON output — these are **required** for follow-up edits/variants
+4. Present design choices and ask for feedback
+5. For mobile projects: remind user the HTML is a visual reference, not production code
+
+**Important:** Always pass `--project-id` and `--screen-id` from the previous JSON output when using `--mode edit` or `--mode variants` with an existing screen. The script validates these upfront and will error if missing.
+
+### Stitch examples
+
+**Mobile — Fitness app (reference for React Native):**
+```bash
+bun stitch-generate.ts -p "A fitness tracking app main screen: daily step counter ring, heart rate card, weekly activity bar chart, bottom tab navigation with Home/Workouts/Nutrition/Profile. Dark theme with purple (#6C5CE7) and teal (#00CEC9) accents on dark background (#1A1A2E)" -d MOBILE
+```
+
+**Desktop — SaaS dashboard (usable HTML):**
+```bash
+bun stitch-generate.ts -p "Analytics dashboard: left sidebar nav with icons, top KPI cards row (Revenue, Users, Conversion, MRR), full-width revenue line chart, two-column bottom section with user growth bar chart and geographic heatmap. Dark mode, Shadcn style, Inter font" -d DESKTOP -m GEMINI_3_PRO
+```
+
+**Landing page (usable HTML):**
+```bash
+bun stitch-generate.ts -p "AI writing assistant landing page: sticky nav, hero with large headline and email signup CTA, trusted-by logos bar, 3-column features grid, testimonial cards, 3-tier pricing table, footer. Dark theme with vibrant purple-to-cyan gradients, glassmorphism cards" -d DESKTOP
+```
+
+---
+
+## Track B: Nano Banana Engine
+
+### Step B1: Understand the request
 
 Determine the **mode** and **platform**:
 
@@ -56,7 +203,7 @@ Determine the **mode** and **platform**:
 | **Dashboard** | Wide monitor | `21:9` or `16:9` | Data-dense, sidebar + grid |
 | **Watch** | Apple Watch | `5:6` | watchOS, compact |
 
-### Step 2: Build the JSON prompt
+### Step B2: Build the JSON prompt
 
 Build a structured JSON prompt tailored to the platform:
 
@@ -113,7 +260,7 @@ but modernize the visual design with: <user's style preferences>.
 Here is the current screen design to reimagine:
 ```
 
-### Step 3: Generate the image
+### Step B3: Generate the image
 
 ```bash
 bun "${CLAUDE_SKILL_DIR}/scripts/generate.ts" \
@@ -134,74 +281,116 @@ bun "${CLAUDE_SKILL_DIR}/scripts/generate.ts" \
   --output "/tmp/screen-designer"
 ```
 
-### Step 4: Show results
+### Step B4: Show results
 
 1. Read the generated image(s) using the Read tool to display them
 2. Present each screen with a brief description of design choices
 3. Ask if they want variations, adjustments, or another screen
 
+---
+
+## DESIGN.md for Multi-Screen Consistency
+
+When generating multiple related screens (especially with Stitch), create a `DESIGN.md` in the working directory to ensure visual consistency.
+
+### Creating a DESIGN.md
+
+Either:
+1. **Generate with Stitch first** — after the first screen, extract the design tokens and create the DESIGN.md
+2. **Write manually** — create from the user's requirements
+
+### Template:
+
+```markdown
+# Design System — [App Name]
+
+## Overview
+[1-2 sentences: personality, density, aesthetic philosophy]
+
+## Colors
+- **Primary** (#hex): [role — CTAs, active states]
+- **Secondary** (#hex): [role — supporting UI]
+- **Background** (#hex): [role — page backgrounds]
+- **Surface** (#hex): [role — cards, containers]
+- **Text** (#hex): [role — primary text]
+- **Error** (#hex): [role — validation, destructive]
+
+## Typography
+- **Headlines**: [font], [weight], [size range]
+- **Body**: [font], [weight], [size]
+- **Labels**: [font], [weight], [size]
+
+## Components
+- **Buttons**: [shape, variants, states]
+- **Cards**: [elevation, radius, padding]
+- **Navigation**: [pattern, active states]
+- **Inputs**: [border, background, focus]
+
+## Do's and Don'ts
+- Do [guideline]
+- Don't [anti-pattern]
+```
+
+### Usage with Stitch:
+```bash
+bun stitch-generate.ts -p "Settings page" --design-md ./DESIGN.md --project-id <id>
+```
+
+### Usage with Nano Banana:
+Include the design system details directly in the JSON prompt's `color_palette`, `design_system`, and `visual_details` fields. Reuse the same values across all screens.
+
+---
+
 ## Prompt Engineering Guidelines
 
-### General:
+### General (both engines):
 - Always specify the device frame and platform context
 - Include explicit color palette — never leave colors to chance
 - Describe each layout section in natural language
 - Add mood/atmosphere keywords (clean, bold, minimalist, glassmorphism, brutalist, etc.)
 - For text-heavy screens, specify actual placeholder content
 
-### For redesigns from screenshots:
-- Always include the screenshot via `--screenshot`
-- Describe what to KEEP (functionality, structure) and what to CHANGE (style, colors, layout)
-- Reference specific elements: "keep sidebar but add icons", "make the cards floating with shadows"
-- Name the target style explicitly
+### Stitch-specific:
+- Use adjectives to set the vibe — "sophisticated", "playful", "minimalist"
+- Be specific about elements — "card with rounded corners and subtle shadow"
+- One change per edit prompt — Stitch handles single focused changes best
+- For variants: specify which aspects to vary (LAYOUT, COLOR_SCHEME, etc.)
 
-### For multi-screen flows:
+### Nano Banana-specific:
+- Use structured JSON for maximum quality
+- For redesigns: always include screenshot via `--screenshot`
+- Name the target style explicitly (iOS 18, Material 3, etc.)
+
+### For multi-screen flows (both engines):
 - Generate one screen at a time for consistency
-- Reuse the same `color_palette` and `design_system` across all screens
+- Use DESIGN.md (Stitch) or reuse same JSON palette (Nano Banana)
 - Reference previous screens in the prompt
 
-### Platform-specific tips:
+### Platform tips:
 - **Mobile**: Focus on thumb-friendly zones, large touch targets, single-column
-- **Web**: Include browser chrome in the prompt for realism, consider responsive breakpoints
+- **Web**: Include browser chrome for realism, consider responsive breakpoints
 - **Dashboard**: Prioritize data density, use charts/graphs, dark mode works well
 - **Landing page**: Hero image/gradient is critical, clear CTA hierarchy
 
-## Examples
-
-### Mobile — Fitness dashboard (dark mode):
-```bash
-bun generate.ts -p "fitness dashboard" -a "9:16" \
-  -j '{"image_type":"mobile_app_screen","device":{"frame":"iPhone 16 Pro","orientation":"portrait"},"app_concept":"Fitness tracking","screen":"Dashboard","design_system":{"style":"iOS 18","corners":"16px","spacing":"8pt grid"},"color_palette":{"primary":"#6C5CE7","secondary":"#00CEC9","background":"#1A1A2E","text":"#EAEAEA"},"layout":{"header":"Greeting + avatar","hero":"Activity ring chart","sections":["Heart rate card","Weekly workouts chart"],"footer":"Home, Workouts, Nutrition, Profile tabs"},"visual_details":{"mood":"Dark, premium, neon accents"}}'
-```
-
-### Desktop web — SaaS dashboard:
-```bash
-bun generate.ts -p "saas analytics dashboard" -a "16:9" \
-  -j '{"image_type":"web_app_dashboard","device":{"frame":"Chrome browser 1440px","orientation":"landscape"},"app_concept":"SaaS analytics platform","screen":"Main dashboard","design_system":{"style":"Shadcn/Tailwind","corners":"8px","shadows":"subtle","spacing":"16px grid"},"color_palette":{"primary":"#6366F1","secondary":"#EC4899","background":"#09090B","surface":"#18181B","text":"#FAFAFA"},"layout":{"navigation":"Left sidebar with icons and labels, collapsible","hero":"KPI cards row (Revenue, Users, Conversion, MRR)","sections":["Revenue line chart spanning full width","Two-column: User growth bar chart + Geographic heatmap","Recent transactions table with status badges"],"footer":"None"},"visual_details":{"typography":"Inter, monospace for numbers","mood":"Professional dark mode, data-dense, clean"}}'
-```
-
-### Tablet — E-commerce product page:
-```bash
-bun generate.ts -p "ecommerce product iPad" -a "3:4" \
-  -j '{"image_type":"tablet_app_screen","device":{"frame":"iPad Pro 13","orientation":"portrait"},"app_concept":"Premium e-commerce","screen":"Product detail","design_system":{"style":"iPadOS native","corners":"12px","spacing":"16pt"},"color_palette":{"primary":"#1A1A1A","secondary":"#D4AF37","background":"#FFFFFF","text":"#1A1A1A"},"layout":{"navigation":"Top bar with back, search, cart icon","hero":"Large product image gallery with thumbnails","sections":["Product title, price, ratings","Color/size selectors","Description accordion","Related products horizontal scroll"],"footer":"Sticky Add to Cart bar"},"visual_details":{"mood":"Luxury, clean, generous whitespace"}}'
-```
-
-### Landing page — AI startup:
-```bash
-bun generate.ts -p "ai startup landing page" -a "9:16" \
-  -j '{"image_type":"landing_page","device":{"frame":"Full page","orientation":"portrait"},"app_concept":"AI writing assistant startup","screen":"Homepage","design_system":{"style":"Modern marketing","corners":"12px","shadows":"large, colorful","spacing":"generous sections"},"color_palette":{"primary":"#7C3AED","secondary":"#06B6D4","background":"#0F0F23","text":"#F8FAFC"},"layout":{"navigation":"Sticky top nav: Logo, Features, Pricing, Login, CTA button","hero":"Large headline + subtext + email input + CTA + hero screenshot","sections":["Logos bar: trusted by X companies","3-column features grid with icons","Before/after comparison","Testimonial cards carousel","Pricing 3-tier table"],"footer":"Links columns + newsletter signup"},"visual_details":{"illustrations":"Gradient blobs, glassmorphism cards","typography":"Cal Sans headings, Inter body","mood":"Futuristic, dark, vibrant gradients"}}'
-```
-
-### Redesign from screenshot:
-```bash
-bun generate.ts -p "modernize settings" -s "./current-settings.png" -a "9:16" \
-  -j '{"image_type":"screen_redesign","redesign_instructions":"Modernize this screen with a cleaner layout, rounded card groups, and spacious design. Keep all functionality.","design_system":{"style":"iOS 18","corners":"12px","spacing":"16pt gaps"},"color_palette":{"primary":"#007AFF","background":"#F2F2F7","surface":"#FFFFFF","text":"#1C1C1E"},"visual_details":{"mood":"Clean, spacious, modern"}}'
-```
-
 ## Troubleshooting
 
+### Nano Banana:
 - **"No image generated"**: Prompt may have triggered safety filters. Simplify the description.
 - **Rate limited**: Script auto-retries after 10s. For batch, add pauses.
-- **SDK not found**: Run `cd "${CLAUDE_SKILL_DIR}/scripts" && bun add @google/genai`
-- **Low quality**: Use more detailed JSON prompts. Nano Banana responds best to structured, explicit prompts.
-- **Wrong platform feel**: Be explicit about the design system (iOS 18 vs Material 3 vs web).
+- **Low quality**: Use more detailed JSON prompts with explicit color palettes.
+- **Wrong platform feel**: Be explicit about design system (iOS 18 vs Material 3 vs web).
+
+### Stitch:
+- **Timeout**: Generation can take up to 60s. Don't retry prematurely.
+- **Rate limited [RATE_LIMITED]**: 350 standard / 50 experimental generations per month. Use GEMINI_3_FLASH for faster iteration.
+- **Auth error [AUTH_FAILED]**: Check STITCH_API_KEY is set and valid.
+- **Edit fails**: Both --project-id and --screen-id are **required** for edit mode. Get them from the JSON output of a previous generation.
+- **Variants with existing screen**: --project-id is **required** when using --screen-id in variants mode.
+- **"Unknown option" error**: The script validates all CLI flags. Run with `--help` to see valid options.
+- **Invalid device-type/model/creative-range/aspects**: The script validates all enum values at startup. Valid values are shown in the error message.
+- **Mobile HTML not matching RN**: Expected — Stitch HTML is a reference. Extract design tokens (colors, spacing, fonts) for your RN implementation.
+
+### SDK not found:
+```bash
+cd "${CLAUDE_SKILL_DIR}/scripts" && bun install
+```
