@@ -1,14 +1,9 @@
 ---
 name: screen-designer
 description: >
-  Generate UI screen designs using dual engines: Stitch SDK (HTML/code output, iterative editing,
-  design variants, design system consistency via DESIGN.md) and Nano Banana 2 (Gemini Flash Image
-  for screenshot redesign, visual concepts, raster mockups).
-  Creates high-fidelity mockups for mobile apps, web apps, desktop software, tablets, dashboards,
-  and landing pages. For mobile (Expo/React Native), Stitch HTML serves as visual reference only.
-  Invoke when user asks to "design a screen", "create a mockup", "redesign this screen",
-  "generate UI", "app screen design", "web mockup", "dashboard design", "landing page design",
-  "nano banana design", "stitch design", "screen-designer", or wants AI-generated screen designs.
+  Generate UI screen designs via Stitch SDK (HTML output, design variants) and Nano Banana 2
+  (Gemini Flash Image for visual mockups). For mobile, web, dashboards, landing pages.
+  Triggers on: "design a screen", "mockup", "redesign", "generate UI", "nano banana", "stitch".
 user-invocable: true
 argument-hint: "<description of the screen to design>"
 compatibility: Requires Bun. Nano Banana needs GEMINI_API_KEY. Stitch needs STITCH_API_KEY.
