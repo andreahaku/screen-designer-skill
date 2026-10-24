@@ -17,19 +17,19 @@ import { join } from 'path';
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 type DeviceType = "DEVICE_TYPE_UNSPECIFIED" | "MOBILE" | "DESKTOP" | "TABLET" | "AGNOSTIC";
-type ModelId = "MODEL_ID_UNSPECIFIED" | "GEMINI_3_PRO" | "GEMINI_3_FLASH";
+type ModelId = "MODEL_ID_UNSPECIFIED" | "GEMINI_3_1_PRO" | "GEMINI_3_FLASH" | "GEMINI_3_PRO";
 type CreativeRange = "CREATIVE_RANGE_UNSPECIFIED" | "REFINE" | "EXPLORE" | "REIMAGINE";
 type VariantAspect = "VARIANT_ASPECT_UNSPECIFIED" | "LAYOUT" | "COLOR_SCHEME" | "IMAGES" | "TEXT_FONT" | "TEXT_CONTENT";
 
 const VALID_DEVICE_TYPES: DeviceType[] = ["DEVICE_TYPE_UNSPECIFIED", "MOBILE", "DESKTOP", "TABLET", "AGNOSTIC"];
-const VALID_MODELS: ModelId[] = ["MODEL_ID_UNSPECIFIED", "GEMINI_3_PRO", "GEMINI_3_FLASH"];
+const VALID_MODELS: ModelId[] = ["MODEL_ID_UNSPECIFIED", "GEMINI_3_1_PRO", "GEMINI_3_FLASH", "GEMINI_3_PRO"];
 const VALID_CREATIVE_RANGES: CreativeRange[] = ["CREATIVE_RANGE_UNSPECIFIED", "REFINE", "EXPLORE", "REIMAGINE"];
 const VALID_ASPECTS: VariantAspect[] = ["VARIANT_ASPECT_UNSPECIFIED", "LAYOUT", "COLOR_SCHEME", "IMAGES", "TEXT_FONT", "TEXT_CONTENT"];
 
 interface StitchOptions {
   prompt: string;
   deviceType: DeviceType;
-  model: ModelId;
+  model?: ModelId;
   outputDir: string;
   projectId?: string;
   screenId?: string;
@@ -51,15 +51,30 @@ interface ScreenResult {
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 const DEFAULT_DEVICE: DeviceType = 'MOBILE';
-const DEFAULT_MODEL: ModelId = 'GEMINI_3_PRO';
+// Nessun modello di default: dal 24/10/2026 il server rifiuta ogni modelId esplicito
+// ("Request contains an invalid argument") e sceglie lui se il campo manca.
+const DEFAULT_MODEL: ModelId | undefined = undefined;
 const DEFAULT_OUTPUT = '/tmp/screen-designer';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 async function downloadToFile(url: string, filePath: string): Promise<void> {
-  const response = await fetch(url);
+  // I file su stitch.googleapis.com (SDK 0.3.x) vogliono la chiave in header e rispondono
+  // con un JSON { dataString: base64 }; gli URL pubblici (googleusercontent) no.
+  const isStitchFile = new URL(url).hostname === 'stitch.googleapis.com';
+  const headers: Record<string, string> = isStitchFile
+    ? { 'X-Goog-Api-Key': process.env.STITCH_API_KEY ?? '' }
+    : {};
+  const response = await fetch(url, { headers });
   if (!response.ok) {
     throw new Error(`Download failed (${response.status}): ${url}`);
+  }
+  const contentType = response.headers.get('content-type') ?? '';
+  if (isStitchFile && contentType.includes('application/json')) {
+    const body = (await response.json()) as { dataString?: string };
+    if (!body.dataString) throw new Error(`Download without dataString: ${url}`);
+    writeFileSync(filePath, Buffer.from(body.dataString, 'base64'));
+    return;
   }
   const buffer = Buffer.from(await response.arrayBuffer());
   writeFileSync(filePath, buffer);
@@ -249,7 +264,8 @@ Usage: bun stitch-generate.ts --prompt "..." [options]
 Options:
   -p, --prompt          Text description of the screen to generate (required)
   -d, --device-type     MOBILE | DESKTOP | TABLET | AGNOSTIC (default: MOBILE)
-  -m, --model           GEMINI_3_PRO | GEMINI_3_FLASH (default: GEMINI_3_PRO)
+  -m, --model           GEMINI_3_1_PRO | GEMINI_3_FLASH (default: none, the server picks.
+                        As of 2026-10-24 the server rejects any explicit model)
   -o, --output          Output directory (default: /tmp/screen-designer)
       --project-id      Reuse existing Stitch project
       --screen-id       Target screen for edit/variants mode
@@ -267,8 +283,8 @@ Examples:
   # New mobile screen
   bun stitch-generate.ts -p "A fitness dashboard with daily steps and heart rate" -d MOBILE
 
-  # Desktop web with Stitch Pro model
-  bun stitch-generate.ts -p "SaaS pricing page with 3 tiers" -d DESKTOP -m GEMINI_3_PRO
+  # Desktop web
+  bun stitch-generate.ts -p "SaaS pricing page with 3 tiers" -d DESKTOP
 
   # Edit existing screen
   bun stitch-generate.ts -p "Change color scheme to dark mode" --mode edit --project-id abc --screen-id xyz
@@ -302,8 +318,8 @@ Examples:
   }
 
   // Validate model
-  const model = (values.model || DEFAULT_MODEL) as ModelId;
-  if (!VALID_MODELS.includes(model)) {
+  const model = (values.model || DEFAULT_MODEL) as ModelId | undefined;
+  if (model && !VALID_MODELS.includes(model)) {
     console.error(`Error: Invalid model "${model}". Use: ${VALID_MODELS.join(', ')}`);
     process.exit(1);
   }
@@ -357,7 +373,7 @@ Examples:
 
   console.log(`Stitch Engine — ${opts.mode} mode`);
   console.log(`Device: ${opts.deviceType}`);
-  console.log(`Model: ${opts.model}`);
+  console.log(`Model: ${opts.model ?? 'server default'}`);
   console.log(`Output: ${opts.outputDir}`);
   if (opts.designMdPath) {
     console.log(`Design system: ${opts.designMdPath}`);

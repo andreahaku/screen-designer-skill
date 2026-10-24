@@ -77,8 +77,8 @@ Determine the **mode**, **device type**, and whether to use DESIGN.md:
 | Flexible / unknown | `AGNOSTIC` | Let Stitch decide |
 
 **Model selection:**
-- `GEMINI_3_PRO` — Higher quality, slower (default)
-- `GEMINI_3_FLASH` — Faster iteration, slightly lower quality
+- **Default: no `--model`.** As of 2026-10-24 the Stitch server rejects every explicit modelId ("Request contains an invalid argument") and picks the model itself when the field is absent. Pass `--model` only after checking it works again.
+- `GEMINI_3_1_PRO`, `GEMINI_3_FLASH`: accepted by SDK 0.3.5. `GEMINI_3_PRO` is deprecated.
 
 ### Step A2: Build the prompt
 
@@ -99,7 +99,6 @@ Write a clear, specific prompt. Use Stitch prompting best practices:
 bun "${CLAUDE_SKILL_DIR}/scripts/stitch-generate.ts" \
   --prompt "<description>" \
   --device-type "<MOBILE|DESKTOP|TABLET|AGNOSTIC>" \
-  --model "<GEMINI_3_PRO|GEMINI_3_FLASH>" \
   --output "/tmp/screen-designer"
 ```
 
@@ -162,7 +161,7 @@ bun stitch-generate.ts -p "A fitness tracking app main screen: daily step counte
 
 **Desktop — SaaS dashboard (usable HTML):**
 ```bash
-bun stitch-generate.ts -p "Analytics dashboard: left sidebar nav with icons, top KPI cards row (Revenue, Users, Conversion, MRR), full-width revenue line chart, two-column bottom section with user growth bar chart and geographic heatmap. Dark mode, Shadcn style, Inter font" -d DESKTOP -m GEMINI_3_PRO
+bun stitch-generate.ts -p "Analytics dashboard: left sidebar nav with icons, top KPI cards row (Revenue, Users, Conversion, MRR), full-width revenue line chart, two-column bottom section with user growth bar chart and geographic heatmap. Dark mode, Shadcn style, Inter font" -d DESKTOP
 ```
 
 **Landing page (usable HTML):**
@@ -377,7 +376,7 @@ Include the design system details directly in the JSON prompt's `color_palette`,
 
 ### Stitch:
 - **Timeout**: Generation can take up to 60s. Don't retry prematurely.
-- **Rate limited [RATE_LIMITED]**: 350 standard / 50 experimental generations per month. Use GEMINI_3_FLASH for faster iteration.
+- **Rate limited [RATE_LIMITED]**: 350 standard / 50 experimental generations per month. Spread generations over time.
 - **Auth error [AUTH_FAILED]**: Check STITCH_API_KEY is set and valid.
 - **Edit fails**: Both --project-id and --screen-id are **required** for edit mode. Get them from the JSON output of a previous generation.
 - **Variants with existing screen**: --project-id is **required** when using --screen-id in variants mode.

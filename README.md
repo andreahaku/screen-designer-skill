@@ -133,7 +133,7 @@ bun scripts/stitch-generate.ts \
 |------|-------|-------------|---------|
 | `--prompt` | `-p` | Screen description (required) | — |
 | `--device-type` | `-d` | MOBILE, DESKTOP, TABLET, AGNOSTIC | `MOBILE` |
-| `--model` | `-m` | GEMINI_3_PRO, GEMINI_3_FLASH | `GEMINI_3_PRO` |
+| `--model` | `-m` | GEMINI_3_1_PRO, GEMINI_3_FLASH (GEMINI_3_PRO deprecated). As of 2026-10-24 the server rejects any explicit model | none, the server picks |
 | `--output` | `-o` | Output directory | `/tmp/screen-designer` |
 | `--project-id` | | Reuse existing Stitch project. **Required** for edit mode and variants with --screen-id | — |
 | `--screen-id` | | Target screen for edit/variants. **Required** for edit mode | — |
