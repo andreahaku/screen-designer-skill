@@ -65,7 +65,9 @@ async function downloadToFile(url: string, filePath: string): Promise<void> {
   const headers: Record<string, string> = isStitchFile
     ? { 'X-Goog-Api-Key': process.env.STITCH_API_KEY ?? '' }
     : {};
-  const response = await fetch(url, { headers });
+  // Con la chiave in header niente redirect: il fetch di Bun la inoltrerebbe anche a un
+  // host diverso (provato il 24/10/2026). Un redirect qui è un errore, non un percorso.
+  const response = await fetch(url, { headers, redirect: isStitchFile ? 'error' : 'follow' });
   if (!response.ok) {
     throw new Error(`Download failed (${response.status}): ${url}`);
   }
